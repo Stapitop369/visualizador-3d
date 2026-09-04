@@ -1,0 +1,1035 @@
+<title>Visualizador Tapitop</title>
+<meta name="theme-color" content="#0e0d0b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Inter:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #f4efe6;
+    --bg-2: #e6dfd2;
+    --stage: radial-gradient(ellipse 70% 60% at 50% 62%, #fbf8f2 0%, #f1ebe0 45%, #ded5c5 100%);
+    --surface: rgba(255, 255, 255, 0.55);
+    --surface-strong: rgba(255, 255, 255, 0.82);
+    --line: rgba(27, 24, 21, 0.12);
+    --line-strong: rgba(27, 24, 21, 0.28);
+    --text: #1b1815;
+    --text-2: #6f665b;
+    --text-3: #9a9084;
+    --brass: #a8763e;
+    --brass-2: #c99a5f;
+    --on-brass: #fbf7f0;
+    --shadow: 0 20px 50px -20px rgba(27, 24, 21, 0.25);
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+    --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e0d0b;
+      --bg-2: #1a1612;
+      --stage: radial-gradient(ellipse 70% 60% at 50% 64%, #2b241c 0%, #16120f 45%, #0a0908 100%);
+      --surface: rgba(18, 15, 12, 0.55);
+      --surface-strong: rgba(18, 15, 12, 0.85);
+      --line: rgba(245, 241, 234, 0.10);
+      --line-strong: rgba(245, 241, 234, 0.26);
+      --text: #f5f1ea;
+      --text-2: #a39b8f;
+      --text-3: #6f675d;
+      --brass: #c99a5f;
+      --brass-2: #e2b97c;
+      --on-brass: #14110d;
+      --shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.7);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e0d0b;
+    --bg-2: #1a1612;
+    --stage: radial-gradient(ellipse 70% 60% at 50% 64%, #2b241c 0%, #16120f 45%, #0a0908 100%);
+    --surface: rgba(18, 15, 12, 0.55);
+    --surface-strong: rgba(18, 15, 12, 0.85);
+    --line: rgba(245, 241, 234, 0.10);
+    --line-strong: rgba(245, 241, 234, 0.26);
+    --text: #f5f1ea;
+    --text-2: #a39b8f;
+    --text-3: #6f675d;
+    --brass: #c99a5f;
+    --brass-2: #e2b97c;
+    --on-brass: #14110d;
+    --shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.7);
+    color-scheme: dark;
+  }
+
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  * { box-sizing: border-box; }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 1.5px solid var(--brass); outline-offset: 3px; }
+
+  #app { position: fixed; inset: 0; background: var(--stage); }
+  #app::after {
+    /* fine grain so the stage reads as photographic paper, not a flat gradient */
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.35;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: soft-light;
+  }
+  canvas#scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  canvas#scene:active { cursor: grabbing; }
+
+  /* ---------- glass panels ---------- */
+  .panel {
+    background: var(--surface);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    backdrop-filter: blur(18px) saturate(1.2);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+
+  /* ---------- top bar ---------- */
+  .topbar {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+    padding: 18px 22px; gap: 16px;
+    pointer-events: none;
+  }
+  .topbar > * { pointer-events: auto; }
+  .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
+  .brand img { width: 40px; height: auto; display: block; }
+  .brand img.dark-only { display: none; }
+  :root[data-theme="dark"] .brand img.dark-only { display: block; }
+  :root[data-theme="dark"] .brand img.light-only { display: none; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .brand img.dark-only { display: block; }
+    :root:not([data-theme="light"]) .brand img.light-only { display: none; }
+  }
+  .brand .wordmark { font-size: 11px; letter-spacing: 0.32em; text-transform: uppercase; color: var(--brass); }
+  .brand .product { font-family: var(--font-display); font-size: 17px; font-weight: 400; letter-spacing: 0.01em; margin-top: 1px; }
+
+  .segmented { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; }
+  .segmented button {
+    appearance: none; border: 0; background: transparent; cursor: pointer;
+    padding: 8px 16px; border-radius: 999px; color: var(--text-2);
+    font-size: 13px; font-weight: 500; letter-spacing: 0.01em; white-space: nowrap;
+    transition: color 0.3s var(--ease), background 0.3s var(--ease);
+  }
+  .segmented button:hover { color: var(--text); }
+  .segmented button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+
+  .tools { display: flex; justify-content: flex-end; gap: 6px; }
+  .icon-btn {
+    appearance: none; border: 1px solid var(--line); background: var(--surface);
+    -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+    width: 40px; height: 40px; border-radius: 999px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; color: var(--text-2);
+    transition: color 0.3s var(--ease), border-color 0.3s var(--ease), background 0.3s var(--ease);
+    position: relative;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--line-strong); }
+  .icon-btn[aria-pressed="true"] { color: var(--brass); border-color: var(--brass); }
+  .icon-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .icon-btn[data-tip]::after {
+    content: attr(data-tip); position: absolute; top: calc(100% + 8px); right: 0;
+    background: var(--surface-strong); border: 1px solid var(--line); color: var(--text);
+    font-size: 11px; letter-spacing: 0.04em; padding: 5px 9px; white-space: nowrap;
+    opacity: 0; transform: translateY(-4px); pointer-events: none;
+    transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
+  }
+  .icon-btn:hover::after { opacity: 1; transform: none; }
+
+  /* ---------- catalogue rail ---------- */
+  .rail {
+    position: absolute; right: 22px; top: 86px; bottom: 22px; z-index: 4;
+    width: 264px; display: flex; flex-direction: column;
+    max-height: calc(100% - 108px);
+  }
+  .rail-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: baseline; }
+  .rail-head h2 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 18px; letter-spacing: 0.005em; }
+  .rail-head span { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-3); }
+  .swatches { list-style: none; margin: 0; padding: 8px 8px; overflow-y: auto; flex: 1; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .swatch {
+    appearance: none; width: 100%; border: 0; background: transparent; cursor: pointer;
+    display: grid; grid-template-columns: 46px 1fr; gap: 14px; align-items: center;
+    padding: 8px 10px; text-align: left; border-radius: 4px;
+    position: relative; transition: background 0.3s var(--ease);
+  }
+  .swatch:hover { background: rgba(127, 111, 92, 0.10); }
+  .swatch .chip {
+    width: 46px; height: 46px; border-radius: 50%; overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.12), 0 2px 6px -2px rgba(0,0,0,0.4);
+    background: var(--bg-2);
+    transition: transform 0.4s var(--ease);
+  }
+  .swatch .chip canvas, .swatch .chip img { width: 100%; height: 100%; display: block; object-fit: cover; }
+  .swatch:hover .chip { transform: scale(1.06); }
+  .swatch .name { font-family: var(--font-display); font-size: 17px; font-weight: 400; line-height: 1.15; }
+  .swatch .kind { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); margin-top: 3px; }
+  .swatch[aria-pressed="true"]::before {
+    content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; background: var(--brass);
+  }
+  .swatch[aria-pressed="true"] .name { color: var(--brass); }
+  .swatch.upload .chip { display: flex; align-items: center; justify-content: center; border: 1px dashed var(--line-strong); box-shadow: none; color: var(--text-2); }
+  .swatch.upload .chip svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; }
+  .rail-foot { border-top: 1px solid var(--line); padding: 10px 8px 8px; }
+
+  /* ---------- fabric label card ---------- */
+  .label {
+    position: absolute; left: 22px; bottom: 22px; z-index: 4; width: 340px; padding: 22px 24px 20px;
+  }
+  .label .eyebrow { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-3); display: flex; gap: 10px; align-items: center; }
+  .label .eyebrow i { width: 8px; height: 8px; border-radius: 50%; background: var(--brass); display: inline-block; }
+  .label h1 {
+    margin: 8px 0 2px; font-family: var(--font-display); font-weight: 300; font-style: italic;
+    font-size: 44px; line-height: 1; letter-spacing: -0.01em; text-wrap: balance;
+    font-variation-settings: "opsz" 144;
+  }
+  .label .spec { margin: 10px 0 0; color: var(--text-2); font-size: 13px; }
+  .label .spec b { font-weight: 500; color: var(--text); }
+  .label dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 14px 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12px; }
+  .label dt { color: var(--text-3); letter-spacing: 0.06em; text-transform: uppercase; font-size: 10.5px; padding-top: 2px; }
+  .label dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .label .actions { display: flex; gap: 8px; margin-top: 18px; }
+  .btn {
+    appearance: none; border: 1px solid transparent; cursor: pointer; text-decoration: none;
+    padding: 11px 16px; font-size: 13px; font-weight: 500; letter-spacing: 0.02em;
+    display: inline-flex; align-items: center; gap: 8px; border-radius: 2px;
+    transition: background 0.3s var(--ease), color 0.3s var(--ease), border-color 0.3s var(--ease), transform 0.3s var(--ease);
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--brass); color: var(--on-brass); }
+  .btn-primary:hover { background: var(--brass-2); }
+  .btn-ghost { border-color: var(--line-strong); color: var(--text); background: transparent; }
+  .btn-ghost:hover { border-color: var(--text); }
+  .btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- hint + toast ---------- */
+  .hint {
+    position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 3;
+    font-size: 12px; letter-spacing: 0.08em; color: var(--text-2);
+    display: flex; align-items: center; gap: 10px; pointer-events: none;
+    transition: opacity 0.8s var(--ease);
+  }
+  .hint.hidden { opacity: 0; }
+  .hint svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.3; stroke-linecap: round; }
+  .hint .deg { font-family: var(--font-display); font-size: 15px; letter-spacing: 0; color: var(--brass); }
+
+  .toast {
+    position: absolute; left: 50%; top: 80px; transform: translate(-50%, -8px); z-index: 9;
+    padding: 10px 16px; font-size: 13px; opacity: 0; pointer-events: none;
+    transition: opacity 0.3s var(--ease), transform 0.3s var(--ease);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  /* ---------- loader ---------- */
+  .loader {
+    position: absolute; inset: 0; z-index: 20; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+    transition: opacity 0.9s var(--ease), visibility 0.9s;
+  }
+  .loader.done { opacity: 0; visibility: hidden; }
+  .loader img { width: 72px; height: auto; }
+  .loader img.dark-only { display: none; }
+  :root[data-theme="dark"] .loader img.dark-only { display: block; }
+  :root[data-theme="dark"] .loader img.light-only { display: none; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .loader img.dark-only { display: block; }
+    :root:not([data-theme="light"]) .loader img.light-only { display: none; }
+  }
+  .loader .lt { font-family: var(--font-display); font-style: italic; font-size: 22px; font-weight: 300; color: var(--text-2); }
+  .loader .bar { width: 180px; height: 1px; background: var(--line); position: relative; overflow: hidden; }
+  .loader .bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--brass); transition: width 0.25s var(--ease); }
+  .loader .status { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-3); }
+  .loader .err { display: none; max-width: 420px; text-align: center; color: var(--text-2); font-size: 13px; padding: 0 24px; }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 900px) {
+    .topbar { grid-template-columns: auto 1fr auto; padding: 14px 14px; gap: 10px; }
+    .brand .product { display: none; }
+    .brand img { width: 32px; }
+    .segmented { justify-self: center; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+    .segmented button { padding: 7px 12px; font-size: 12px; }
+    .icon-btn { width: 36px; height: 36px; }
+    .icon-btn[data-tip]::after { display: none; }
+    .rail {
+      right: 0; left: 0; top: auto; bottom: 0; width: auto; max-height: none;
+      border-left: 0; border-right: 0; border-bottom: 0;
+    }
+    .rail-head { display: none; }
+    .swatches { display: flex; gap: 6px; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); overflow-x: auto; overflow-y: hidden; }
+    .swatch { grid-template-columns: 1fr; width: auto; gap: 6px; padding: 4px 6px; flex: 0 0 auto; justify-items: center; }
+    .swatch .chip { width: 52px; height: 52px; }
+    .swatch .name { display: none; }
+    .swatch .kind { display: none; }
+    .swatch[aria-pressed="true"]::before { left: 6px; right: 6px; top: auto; bottom: -6px; width: auto; height: 2px; }
+    .rail-foot { border-top: 0; padding: 0; position: absolute; right: 8px; bottom: 100%; margin-bottom: 8px; }
+    .label { left: 12px; right: 12px; bottom: 96px; width: auto; padding: 14px 16px 14px; }
+    .label h1 { font-size: 32px; }
+    .label dl { display: none; }
+    .label .spec { margin-top: 6px; }
+    .label .actions { margin-top: 12px; }
+    .btn { padding: 10px 14px; font-size: 12px; }
+    .hint { bottom: auto; top: 76px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: 0.01ms !important; }
+  }
+</style>
+
+<div id="app">
+  <canvas id="scene"></canvas>
+
+  <header class="topbar">
+    <a class="brand" href="https://studiotapitop.com" aria-label="Studio Tapitop">
+      <img class="light-only" src="data:image/png;base64,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" alt="">
+      <img class="dark-only" src="data:image/png;base64,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" alt="">
+      <div>
+        <div class="wordmark">Studio Tapitop</div>
+        <div class="product">Visualizador de tejidos</div>
+      </div>
+    </a>
+    <nav class="segmented panel" id="models" aria-label="Mueble"></nav>
+    <div class="tools">
+      <button class="icon-btn" id="btn-rotate" aria-pressed="true" data-tip="Giro 360°" aria-label="Giro automático">
+        <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-detail" aria-pressed="false" data-tip="Ver tejido de cerca" aria-label="Detalle del tejido">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/><path d="M8 11h6M11 8v6"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-theme" data-tip="Fondo claro / oscuro" aria-label="Cambiar fondo">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-full" data-tip="Pantalla completa" aria-label="Pantalla completa">
+        <svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <aside class="rail panel" aria-label="Colección">
+    <div class="rail-head"><h2>Colección</h2><span id="count"></span></div>
+    <ul class="swatches" id="swatches"></ul>
+    <div class="rail-foot">
+      <button class="swatch upload" id="btn-upload" type="button">
+        <span class="chip"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+        <span><span class="name">Tu tela</span><span class="kind" style="display:block">Sube una foto</span></span>
+      </button>
+      <input type="file" id="file" accept="image/*" hidden>
+    </div>
+  </aside>
+
+  <section class="label panel" aria-live="polite">
+    <div class="eyebrow"><i></i><span id="lbl-type"></span></div>
+    <h1 id="lbl-name"></h1>
+    <p class="spec" id="lbl-desc"></p>
+    <dl>
+      <dt>Ancho</dt><dd id="lbl-width"></dd>
+      <dt>Composición</dt><dd id="lbl-comp"></dd>
+      <dt>Resistencia</dt><dd id="lbl-mart"></dd>
+    </dl>
+    <div class="actions">
+      <a class="btn btn-primary" id="btn-sample" href="#" target="_blank" rel="noopener">
+        Solicitar muestra
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+      <button class="btn btn-ghost" id="btn-share" type="button">Copiar enlace</button>
+    </div>
+  </section>
+
+  <div class="hint" id="hint">
+    <svg viewBox="0 0 24 24"><path d="M8 3.5A9 9 0 0 0 3.5 12"/><path d="M3.5 8v4h4"/><path d="M16 20.5a9 9 0 0 0 4.5-8.5"/><path d="M20.5 16v-4h-4"/></svg>
+    Arrastra para girar el mueble <span class="deg">360°</span>
+  </div>
+
+  <div class="toast panel" id="toast" role="status"></div>
+
+  <div class="loader" id="loader">
+    <img class="light-only" src="data:image/png;base64,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" alt="Studio Tapitop">
+    <img class="dark-only" src="data:image/png;base64,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" alt="Studio Tapitop">
+    <div class="lt">Tejiendo la colección</div>
+    <div class="bar"><i id="bar"></i></div>
+    <div class="status" id="status">Preparando</div>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* =========================================================================
+   CATÁLOGO
+   Cada tela puede ser procedural (gen) o fotográfica (map / normal con rutas
+   a imágenes planas y repetibles). `tile` es el tamaño real en metros que
+   cubre una repetición de la textura. Los datos técnicos son de ejemplo:
+   sustitúyelos por los de cada referencia.
+   ========================================================================= */
+const CONTACT_URL = 'https://studiotapitop.com/contacto';
+
+const FABRICS = [
+  { id: 'noche',      name: 'Noche',      type: 'Bouclé',      color: '#151210', gen: 'boucle',   tile: 0.34, sheen: 0.45, rough: 0.95, bump: 1.4,
+    desc: 'Rizo denso y profundo, negro carbón con brillo mate.', width: '140 cm', comp: '62% PES · 38% acrílico', mart: '45.000 Martindale' },
+  { id: 'caramelo',   name: 'Caramelo',   type: 'Chenilla',    color: '#b97a3c', gen: 'chenille', tile: 0.22, sheen: 1.0, rough: 0.82, bump: 0.7,
+    desc: 'Chenilla jaspeada de tacto suave, tono caramelo cálido.', width: '140 cm', comp: '100% poliéster', mart: '60.000 Martindale' },
+  { id: 'ocre',       name: 'Ocre',       type: 'Chenilla',    color: '#c48c4a', gen: 'chenille2', tile: 0.24, sheen: 1.0, rough: 0.8, bump: 0.8,
+    desc: 'Grano fino y luminoso, ocre dorado con ligera veta.', width: '140 cm', comp: '100% poliéster', mart: '55.000 Martindale' },
+  { id: 'taupe',      name: 'Taupe',      type: 'Trama cesta', color: '#7c6e61', gen: 'basket',   tile: 0.26, sheen: 0.4, rough: 0.9, bump: 1.6,
+    desc: 'Tejido de trama gruesa en cesta, muy estructurado.', width: '140 cm', comp: '55% PES · 45% algodón', mart: '40.000 Martindale' },
+  { id: 'tabaco',     name: 'Tabaco',     type: 'Lino',        color: '#5c4835', gen: 'linen',    tile: 0.16, sheen: 0.3, rough: 0.92, bump: 1.2,
+    desc: 'Lino natural con gatas irregulares, marrón tabaco.', width: '145 cm', comp: '70% lino · 30% viscosa', mart: '30.000 Martindale' },
+  { id: 'mosaico',    name: 'Mosaico',    type: 'Jacquard',    color: '#ded8ca', gen: 'stripe',   tile: 0.42, sheen: 0.5, rough: 0.9, bump: 1.1,
+    desc: 'Jacquard multicolor de hilos tejidos a franjas.', width: '140 cm', comp: '48% algodón · 52% PES', mart: '35.000 Martindale' },
+  { id: 'marfil',     name: 'Marfil',     type: 'Bouclé',      color: '#e4dccc', gen: 'boucle',   tile: 0.34, sheen: 0.7, rough: 0.95, bump: 1.3,
+    desc: 'Bouclé de rizo abierto, marfil cálido.', width: '140 cm', comp: '62% PES · 38% acrílico', mart: '45.000 Martindale' },
+  { id: 'salvia',     name: 'Salvia',     type: 'Terciopelo',  color: '#7b8a70', gen: 'velvet',   tile: 0.30, sheen: 1.0, rough: 0.7, bump: 0.35,
+    desc: 'Terciopelo de pelo corto con reflejo sedoso, verde salvia.', width: '140 cm', comp: '100% poliéster', mart: '70.000 Martindale' },
+  { id: 'medianoche', name: 'Medianoche', type: 'Terciopelo',  color: '#27334a', gen: 'velvet',   tile: 0.30, sheen: 1.0, rough: 0.7, bump: 0.35,
+    desc: 'Terciopelo profundo azul medianoche.', width: '140 cm', comp: '100% poliéster', mart: '70.000 Martindale' },
+];
+
+const MODELS = [
+  { id: 'sofa',   name: 'Sofá' },
+  { id: 'butaca', name: 'Butaca' },
+  { id: 'silla',  name: 'Silla' },
+  { id: 'puf',    name: 'Puf' },
+];
+
+/* =========================================================================
+   GENERACIÓN DE TEXTURAS (canvas, repetibles)
+   ========================================================================= */
+const S = 1024;
+const makeCanvas = (s = S) => { const c = document.createElement('canvas'); c.width = c.height = s; return c; };
+// cede el hilo al bucle de render cuando se agota el presupuesto de la frame
+let lastYield = 0;
+const chan = new MessageChannel();
+const yieldMacro = () => new Promise(r => { chan.port1.onmessage = () => r(); chan.port2.postMessage(null); });
+async function tick() { const now = performance.now(); if (now - lastYield > 12) { await yieldMacro(); lastYield = performance.now(); } }
+
+function hash2(x, y, seed) {
+  let h = (x * 374761393 + y * 668265263 + seed * 1442695041) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+function vnoise(x, y, period, seed) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const x0 = ((xi % period) + period) % period, x1 = (x0 + 1) % period;
+  const y0 = ((yi % period) + period) % period, y1 = (y0 + 1) % period;
+  const a = hash2(x0, y0, seed), b = hash2(x1, y0, seed), c = hash2(x0, y1, seed), d = hash2(x1, y1, seed);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+// cell: píxeles por celda base (potencia de 2 para que sea repetible en S)
+function fbm(x, y, cell, octaves, seed) {
+  let sum = 0, amp = 1, norm = 0, f = 1 / cell, period = S / cell;
+  for (let o = 0; o < octaves; o++) {
+    sum += amp * vnoise(x * f, y * f, period, seed + o * 17);
+    norm += amp; amp *= 0.5; f *= 2; period *= 2;
+  }
+  return sum / norm;
+}
+function mulberry(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const hex2rgb = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const clamp255 = v => v < 0 ? 0 : v > 255 ? 255 : v;
+const rgbStr = (c, k = 1) => `rgb(${clamp255(c[0] * k) | 0},${clamp255(c[1] * k) | 0},${clamp255(c[2] * k) | 0})`;
+
+function pair() {
+  const col = makeCanvas(), hgt = makeCanvas();
+  return { col, hgt, c: col.getContext('2d'), h: hgt.getContext('2d') };
+}
+// dibuja fn(x,y) también en los bordes opuestos para que el mosaico sea continuo
+function wrapped(fn, x, y, r) {
+  fn(x, y);
+  const l = x < r, rt = x > S - r, t = y < r, b = y > S - r;
+  if (l) fn(x + S, y); if (rt) fn(x - S, y);
+  if (t) fn(x, y + S); if (b) fn(x, y - S);
+  if (l && t) fn(x + S, y + S); if (l && b) fn(x + S, y - S);
+  if (rt && t) fn(x - S, y + S); if (rt && b) fn(x - S, y - S);
+}
+async function pixelFabric(fn) {
+  const p = pair();
+  const ci = p.c.createImageData(S, S), hi = p.h.createImageData(S, S);
+  const cd = ci.data, hd = hi.data, out = [0, 0, 0, 0];
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    if (x === 0) await tick();
+    fn(x, y, out);
+    const i = (y * S + x) * 4;
+    cd[i] = clamp255(out[0]); cd[i + 1] = clamp255(out[1]); cd[i + 2] = clamp255(out[2]); cd[i + 3] = 255;
+    const h = clamp255(out[3]); hd[i] = hd[i + 1] = hd[i + 2] = h; hd[i + 3] = 255;
+  }
+  p.c.putImageData(ci, 0, 0); p.h.putImageData(hi, 0, 0);
+  return p;
+}
+async function multiplyNoise(p, cell, amount, seed) {
+  const ci = p.c.getImageData(0, 0, S, S), d = ci.data;
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    if (x === 0) await tick();
+    const k = 1 + (fbm(x, y, cell, 2, seed) - 0.5) * amount;
+    const i = (y * S + x) * 4;
+    d[i] = clamp255(d[i] * k); d[i + 1] = clamp255(d[i + 1] * k); d[i + 2] = clamp255(d[i + 2] * k);
+  }
+  p.c.putImageData(ci, 0, 0);
+}
+
+const GEN = {
+  async boucle(f) {
+    const base = hex2rgb(f.color), p = pair(), rnd = mulberry(11);
+    p.c.fillStyle = rgbStr(base, 0.72); p.c.fillRect(0, 0, S, S);
+    p.h.fillStyle = '#3a3a3a'; p.h.fillRect(0, 0, S, S);
+    p.c.lineWidth = 1.7; p.h.lineWidth = 2.2;
+    for (let i = 0; i < 30000; i++) {
+      if (i % 1000 === 0) await tick();
+      const x = rnd() * S, y = rnd() * S, r = 2.6 + rnd() * 3.8, rot = rnd() * Math.PI, k = 0.6 + rnd() * 0.85;
+      const ry = r * (0.55 + rnd() * 0.4);
+      p.c.strokeStyle = rgbStr(base, k);
+      p.h.strokeStyle = `rgba(255,255,255,${0.35 + rnd() * 0.45})`;
+      wrapped((px, py) => {
+        p.c.beginPath(); p.c.ellipse(px, py, r, ry, rot, 0, Math.PI * 2); p.c.stroke();
+        p.h.beginPath(); p.h.ellipse(px, py, r, ry, rot, 0, Math.PI * 2); p.h.stroke();
+      }, x, y, 12);
+    }
+    await multiplyNoise(p, 64, 0.16, 3);
+    return p;
+  },
+  chenille(f) { return chenille(f, 4, 0.55, 0.985, 6); },
+  chenille2(f) { return chenille(f, 8, 0.42, 0.99, 7); },
+  velvet(f) {
+    const base = hex2rgb(f.color);
+    return pixelFabric((x, y, o) => {
+      const g = fbm(x, y, 2, 1, 21), m = fbm(x, y, 128, 3, 22);
+      const v = 1 + (g - 0.5) * 0.10 + (m - 0.5) * 0.10;
+      o[0] = base[0] * v; o[1] = base[1] * v; o[2] = base[2] * v; o[3] = 128 + (g - 0.5) * 80;
+    });
+  },
+  linen(f) {
+    const base = hex2rgb(f.color), c = 8, tau = Math.PI * 2 / c;
+    return pixelFabric((x, y, o) => {
+      const cx = Math.floor(x / c), cy = Math.floor(y / c), over = (cx + cy) % 2 === 0;
+      const wx = 0.5 + 0.5 * Math.cos(x * tau), wy = 0.5 + 0.5 * Math.cos(y * tau);
+      const slubX = 0.8 + 0.45 * fbm(cx * c, y, 64, 2, 31);   // hilo vertical (urdimbre)
+      const slubY = 0.8 + 0.45 * fbm(x, cy * c, 64, 2, 32);   // hilo horizontal (trama)
+      const warp = wx * slubX, weft = wy * slubY;
+      const top = over ? warp : weft, bottom = over ? weft : warp;
+      const v = Math.max(top, bottom * 0.75);
+      const tint = 0.9 + 0.2 * (over ? hash2(cx, 0, 33) : hash2(0, cy, 34));
+      const lum = (0.5 + 0.65 * v) * tint;
+      o[0] = base[0] * lum; o[1] = base[1] * lum; o[2] = base[2] * lum; o[3] = 40 + v * 200;
+    });
+  },
+  async basket(f) {
+    const base = hex2rgb(f.color), p = pair(), c = 32, half = c / 2, rnd = mulberry(5);
+    p.c.fillStyle = rgbStr(base, 0.35); p.c.fillRect(0, 0, S, S);
+    p.h.fillStyle = '#202020'; p.h.fillRect(0, 0, S, S);
+    const yarn = (x, y, w, h, horizontal, k) => {
+      const g = horizontal ? p.c.createLinearGradient(0, y, 0, y + h) : p.c.createLinearGradient(x, 0, x + w, 0);
+      g.addColorStop(0, rgbStr(base, 0.55 * k)); g.addColorStop(0.45, rgbStr(base, 1.18 * k)); g.addColorStop(1, rgbStr(base, 0.5 * k));
+      p.c.fillStyle = g; roundRect(p.c, x, y, w, h, Math.min(w, h) * 0.45); p.c.fill();
+      const e = horizontal ? p.c.createLinearGradient(x, 0, x + w, 0) : p.c.createLinearGradient(0, y, 0, y + h);
+      e.addColorStop(0, 'rgba(0,0,0,0.45)'); e.addColorStop(0.25, 'rgba(0,0,0,0)'); e.addColorStop(0.75, 'rgba(0,0,0,0)'); e.addColorStop(1, 'rgba(0,0,0,0.45)');
+      p.c.fillStyle = e; roundRect(p.c, x, y, w, h, Math.min(w, h) * 0.45); p.c.fill();
+      const hg = horizontal ? p.h.createLinearGradient(0, y, 0, y + h) : p.h.createLinearGradient(x, 0, x + w, 0);
+      hg.addColorStop(0, '#303030'); hg.addColorStop(0.5, '#f0f0f0'); hg.addColorStop(1, '#303030');
+      p.h.fillStyle = hg; roundRect(p.h, x, y, w, h, Math.min(w, h) * 0.45); p.h.fill();
+    };
+    for (let j = 0; j < S / c; j++) for (let i = 0; i < S / c; i++) {
+      if (i === 0) await tick();
+      const x = i * c, y = j * c, horizontal = (i + j) % 2 === 0;
+      for (let s = 0; s < 2; s++) {
+        const k = 0.92 + rnd() * 0.16;
+        if (horizontal) yarn(x - 1, y + s * half + 1, c + 2, half - 2, true, k);
+        else yarn(x + s * half + 1, y - 1, half - 2, c + 2, false, k);
+      }
+    }
+    await multiplyNoise(p, 4, 0.35, 9);
+    return p;
+  },
+  async stripe() {
+    const p = pair(), rnd = mulberry(77);
+    const palette = [
+      ['#ece6d8', 7], ['#e2dccd', 4], ['#1f1c1a', 4], ['#2b2725', 2], ['#a9b13c', 1.4], ['#3193a6', 1.2],
+      ['#e07a3a', 0.9], ['#b64b7c', 0.7], ['#8c877a', 1.2], ['#d8c58a', 1], ['#5e7d3a', 0.6],
+    ].map(([c, w]) => [hex2rgb(c), w]);
+    const total = palette.reduce((a, b) => a + b[1], 0);
+    const pick = () => { let r = rnd() * total; for (const [c, w] of palette) { r -= w; if (r <= 0) return c; } return palette[0][0]; };
+    p.c.fillStyle = '#1b1917'; p.c.fillRect(0, 0, S, S);
+    p.h.fillStyle = '#202020'; p.h.fillRect(0, 0, S, S);
+    let y = 0;
+    while (y < S) {
+      await tick();
+      const rh = 5 + Math.floor(rnd() * 9), rowCol = pick();
+      let x = -rnd() * 20;
+      while (x < S) {
+        const len = 5 + rnd() * 26, gap = 1 + rnd() * 2.5, k = 0.86 + rnd() * 0.3;
+        const col = rnd() < 0.08 ? pick() : rowCol;
+        const g = p.c.createLinearGradient(0, y, 0, y + rh);
+        g.addColorStop(0, rgbStr(col, 0.7 * k)); g.addColorStop(0.5, rgbStr(col, 1.1 * k)); g.addColorStop(1, rgbStr(col, 0.65 * k));
+        const hg = p.h.createLinearGradient(0, y, 0, y + rh);
+        hg.addColorStop(0, '#404040'); hg.addColorStop(0.5, '#e8e8e8'); hg.addColorStop(1, '#404040');
+        wrapped((px, py) => {
+          p.c.fillStyle = g; roundRect(p.c, px, py, len, rh - 1, (rh - 1) * 0.45); p.c.fill();
+          p.h.fillStyle = hg; roundRect(p.h, px, py, len, rh - 1, (rh - 1) * 0.45); p.h.fill();
+        }, x, y, 40);
+        x += len + gap;
+      }
+      y += rh;
+    }
+    await multiplyNoise(p, 4, 0.22, 12);
+    return p;
+  },
+};
+function chenille(f, cell, amp, speckle, seed) {
+  const base = hex2rgb(f.color);
+  return pixelFabric((x, y, o) => {
+    const g = fbm(x, y, cell, 2, seed), m = fbm(x, y, 64, 2, seed + 5);
+    let v = 1 + (g - 0.5) * amp + (m - 0.5) * 0.14 + 0.03 * Math.sin((x + y) * Math.PI / 3);
+    if (hash2(x, y, seed + 9) > speckle) v += 0.4;
+    o[0] = base[0] * v; o[1] = base[1] * v; o[2] = base[2] * v; o[3] = 128 + (g - 0.5) * 200;
+  });
+}
+function roundRect(ctx, x, y, w, h, r) {
+  r = Math.max(0.5, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r); ctx.closePath();
+}
+async function normalFromHeight(hgt, strength) {
+  const size = hgt.width;
+  const d = hgt.getContext('2d').getImageData(0, 0, size, size).data;
+  const out = makeCanvas(size), octx = out.getContext('2d'), img = octx.createImageData(size, size), o = img.data;
+  const k = strength / 255;
+  for (let y = 0; y < size; y++) {
+    await tick();
+    const rowUp = ((y - 1 + size) % size) * size, rowDn = ((y + 1) % size) * size, row = y * size;
+    for (let x = 0; x < size; x++) {
+      const xl = (x - 1 + size) % size, xr = (x + 1) % size;
+      const dx = (d[(row + xr) * 4] - d[(row + xl) * 4]) * k;
+      const dy = (d[(rowDn + x) * 4] - d[(rowUp + x) * 4]) * k;
+      const inv = 1 / Math.sqrt(dx * dx + dy * dy + 1);
+      const i = (row + x) * 4;
+      o[i] = (-dx * inv * 0.5 + 0.5) * 255; o[i + 1] = (dy * inv * 0.5 + 0.5) * 255; o[i + 2] = (inv * 0.5 + 0.5) * 255; o[i + 3] = 255;
+    }
+  }
+  octx.putImageData(img, 0, 0);
+  return out;
+}
+
+/* =========================================================================
+   ESCENA
+   ========================================================================= */
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 50);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.enablePan = false;
+controls.minDistance = 0.25; controls.maxDistance = 9;
+controls.maxPolarAngle = Math.PI / 2 - 0.03; controls.minPolarAngle = 0.15;
+controls.autoRotateSpeed = 0.6;
+controls.rotateSpeed = 0.7;
+
+const key = new THREE.DirectionalLight(0xfff3e4, 2.6);
+key.position.set(2.6, 5.2, 3.2); key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.left = key.shadow.camera.bottom = -2.6;
+key.shadow.camera.right = key.shadow.camera.top = 2.6;
+key.shadow.camera.near = 1; key.shadow.camera.far = 14;
+key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02;
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xe6ecff, 0.5); fill.position.set(-4, 2.5, -2); scene.add(fill);
+const rim = new THREE.DirectionalLight(0xffffff, 0.8); rim.position.set(-1, 3, -5); scene.add(rim);
+
+const floor = new THREE.Mesh(new THREE.CircleGeometry(6, 72), new THREE.ShadowMaterial({ opacity: 0.22 }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+const woodMat = new THREE.MeshStandardMaterial({ color: 0x3f2a1c, roughness: 0.45, metalness: 0, envMapIntensity: 0.8 });
+const brassMat = new THREE.MeshStandardMaterial({ color: 0xc99a5f, roughness: 0.28, metalness: 1, envMapIntensity: 1.2 });
+
+// proyección en caja: UV en metros para que la densidad del tejido sea igual en todas las piezas
+function boxMapUVs(geo) {
+  const pos = geo.attributes.position, nor = geo.attributes.normal, uv = geo.attributes.uv;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const ax = Math.abs(nor.getX(i)), ay = Math.abs(nor.getY(i)), az = Math.abs(nor.getZ(i));
+    if (ax >= ay && ax >= az) uv.setXY(i, z, y);
+    else if (ay >= az) uv.setXY(i, x, z);
+    else uv.setXY(i, x, y);
+  }
+  uv.needsUpdate = true;
+  return geo;
+}
+const rbox = (w, h, d, r, seg = 6) => boxMapUVs(new RoundedBoxGeometry(w, h, d, seg, r));
+
+function fabricMesh(geo, x, y, z, rot) {
+  const m = new THREE.Mesh(geo, currentMaterial);
+  m.position.set(x, y, z); if (rot) m.rotation.set(rot[0] || 0, rot[1] || 0, rot[2] || 0);
+  m.castShadow = m.receiveShadow = true; m.userData.fabric = true;
+  return m;
+}
+function leg(kind, x, z, h, rTop = 0.022, rBot = 0.03) {
+  const g = new THREE.CylinderGeometry(rBot, rTop, h, 24);
+  const m = new THREE.Mesh(g, kind === 'brass' ? brassMat : woodMat);
+  m.position.set(x, h / 2, z); m.castShadow = true;
+  return m;
+}
+
+const BUILD = {
+  sofa(g) {
+    const L = 0.12, W = 2.1, D = 0.95;
+    g.add(fabricMesh(rbox(W, 0.30, D, 0.05), 0, L + 0.15, 0));
+    g.add(fabricMesh(rbox(0.22, 0.56, D, 0.08), -(W / 2 - 0.11), L + 0.28, 0));
+    g.add(fabricMesh(rbox(0.22, 0.56, D, 0.08), (W / 2 - 0.11), L + 0.28, 0));
+    g.add(fabricMesh(rbox(W - 0.44, 0.52, 0.20, 0.06), 0, L + 0.30 + 0.24, -D / 2 + 0.10));
+    const cw = (W - 0.44 - 0.03) / 3;
+    for (let i = 0; i < 3; i++) {
+      const x = -cw + i * (cw + 0.015);
+      g.add(fabricMesh(rbox(cw, 0.17, 0.66, 0.06), x, L + 0.30 + 0.085, 0.07));
+      g.add(fabricMesh(rbox(cw, 0.44, 0.17, 0.075), x, L + 0.47 + 0.20, -D / 2 + 0.22 + 0.085, [-0.14, 0, 0]));
+    }
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => g.add(leg('wood', sx * (W / 2 - 0.12), sz * (D / 2 - 0.12), L)));
+    g.userData = { dist: 4.3, targetY: 0.42, detail: [0, L + 0.30 + 0.17, 0.07 + 0.10] };
+  },
+  butaca(g) {
+    const L = 0.14, W = 0.86, D = 0.84;
+    g.add(fabricMesh(rbox(W, 0.28, D, 0.06), 0, L + 0.14, 0));
+    g.add(fabricMesh(rbox(0.18, 0.50, D - 0.06, 0.085), -(W / 2 - 0.09), L + 0.25, 0.02));
+    g.add(fabricMesh(rbox(0.18, 0.50, D - 0.06, 0.085), (W / 2 - 0.09), L + 0.25, 0.02));
+    g.add(fabricMesh(rbox(W, 0.62, 0.18, 0.08), 0, L + 0.28 + 0.24, -D / 2 + 0.09, [-0.08, 0, 0]));
+    g.add(fabricMesh(rbox(W - 0.36, 0.16, 0.60, 0.06), 0, L + 0.28 + 0.08, 0.08));
+    g.add(fabricMesh(rbox(W - 0.36, 0.36, 0.14, 0.065), 0, L + 0.44 + 0.18, -D / 2 + 0.18 + 0.07, [-0.16, 0, 0]));
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => g.add(leg('brass', sx * (W / 2 - 0.10), sz * (D / 2 - 0.10), L, 0.014, 0.014)));
+    g.userData = { dist: 2.8, targetY: 0.42, detail: [0, L + 0.28 + 0.16, 0.08 + 0.10] };
+  },
+  silla(g) {
+    const H = 0.44, W = 0.46, D = 0.46;
+    g.add(fabricMesh(rbox(W, 0.075, D, 0.03), 0, H + 0.0375, 0));
+    g.add(fabricMesh(rbox(W - 0.03, 0.40, 0.055, 0.025), 0, H + 0.075 + 0.20 + 0.02, -D / 2 + 0.05, [-0.1, 0, 0]));
+    const frame = new THREE.Mesh(boxMapUVs(new RoundedBoxGeometry(W - 0.04, 0.05, D - 0.04, 3, 0.01)), woodMat);
+    frame.position.set(0, H - 0.025, 0); frame.castShadow = true; g.add(frame);
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => g.add(leg('wood', sx * (W / 2 - 0.04), sz * (D / 2 - 0.04), H - 0.04, 0.02, 0.014)));
+    g.userData = { dist: 2.2, targetY: 0.5, detail: [0, H + 0.075, 0.08] };
+  },
+  puf(g) {
+    const L = 0.10, W = 0.72;
+    g.add(fabricMesh(rbox(W, 0.34, W, 0.11), 0, L + 0.17, 0));
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => g.add(leg('brass', sx * (W / 2 - 0.10), sz * (W / 2 - 0.10), L, 0.014, 0.014)));
+    g.userData = { dist: 2.5, targetY: 0.26, detail: [0, L + 0.34, 0.12] };
+  },
+};
+
+/* =========================================================================
+   ESTADO
+   ========================================================================= */
+const TEX = new Map();     // id -> { map, normal, thumb }
+const MAT = new Map();     // id -> MeshPhysicalMaterial
+let currentMaterial = null;
+let currentFabric = null;
+let currentModel = null;
+let modelGroup = null;
+let detailMode = false;
+let autoRotate = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let idleTimer = 0, interacting = false;
+let tween = null;
+
+async function makeTextures(f) {
+  let col, normal, thumb;
+  if (f.map) {
+    const loader = new THREE.TextureLoader();
+    col = loader.load(f.map); normal = f.normal ? loader.load(f.normal) : null;
+    thumb = document.createElement('img'); thumb.src = f.map;
+  } else {
+    const p = await GEN[f.gen](f);
+    col = new THREE.CanvasTexture(p.col);
+    normal = new THREE.CanvasTexture(await normalFromHeight(p.hgt, f.bump * 2.2));
+    thumb = makeCanvas(96);
+    thumb.getContext('2d').drawImage(p.col, 0, 0, 300, 300, 0, 0, 96, 96);
+  }
+  for (const t of [col, normal]) {
+    if (!t) continue;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(1 / f.tile, 1 / f.tile);
+    t.anisotropy = MAX_ANISO;
+  }
+  col.colorSpace = THREE.SRGBColorSpace;
+  return { map: col, normal, thumb };
+}
+function materialFor(f) {
+  if (MAT.has(f.id)) return MAT.get(f.id);
+  const t = TEX.get(f.id);
+  const base = new THREE.Color(f.color);
+  const m = new THREE.MeshPhysicalMaterial({
+    map: t.map, normalMap: t.normal, normalScale: new THREE.Vector2(1, 1),
+    roughness: f.rough, metalness: 0,
+    sheen: f.sheen, sheenRoughness: 0.6, sheenColor: base.clone().lerp(new THREE.Color(0xffffff), 0.18),
+    envMapIntensity: 0.55,
+  });
+  MAT.set(f.id, m);
+  return m;
+}
+
+function setFabric(f, { silent } = {}) {
+  currentFabric = f;
+  currentMaterial = materialFor(f);
+  if (modelGroup) modelGroup.traverse(o => { if (o.userData.fabric) o.material = currentMaterial; });
+  document.querySelectorAll('.swatch[data-id]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === f.id)));
+  document.getElementById('lbl-type').textContent = f.type;
+  document.getElementById('lbl-name').textContent = f.name;
+  document.getElementById('lbl-desc').textContent = f.desc || '';
+  document.getElementById('lbl-width').textContent = f.width || '—';
+  document.getElementById('lbl-comp').textContent = f.comp || '—';
+  document.getElementById('lbl-mart').textContent = f.mart || '—';
+  document.getElementById('btn-sample').href = `${CONTACT_URL}?tela=${encodeURIComponent(f.name)}`;
+  if (!silent) writeHash();
+}
+
+function setModel(id, { silent } = {}) {
+  currentModel = id;
+  if (modelGroup) {
+    scene.remove(modelGroup);
+    modelGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  }
+  modelGroup = new THREE.Group();
+  BUILD[id](modelGroup);
+  scene.add(modelGroup);
+  modelGroup.scale.setScalar(0.94);
+  document.querySelectorAll('#models button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
+  if (detailMode) { detailMode = false; document.getElementById('btn-detail').setAttribute('aria-pressed', 'false'); }
+  frameModel(true);
+  if (!silent) writeHash();
+}
+
+function restPose() {
+  const { targetY } = modelGroup.userData;
+  // en pantallas verticales el mueble necesita más aire
+  const dist = modelGroup.userData.dist * (camera.aspect < 1 ? 1.45 : camera.aspect < 1.4 ? 1.15 : 1);
+  const az = 0.62, el = 0.32;
+  return {
+    target: new THREE.Vector3(0, targetY, 0),
+    pos: new THREE.Vector3(Math.sin(az) * Math.cos(el) * dist, targetY + Math.sin(el) * dist, Math.cos(az) * Math.cos(el) * dist),
+  };
+}
+function frameModel(intro) {
+  const rest = restPose();
+  if (intro && !camera.position.length()) {
+    camera.position.copy(rest.pos).multiplyScalar(1.5).add(new THREE.Vector3(-0.8, 0.9, 0));
+    controls.target.copy(rest.target);
+  }
+  startTween(rest.pos, rest.target, intro ? 1.7 : 1.1);
+}
+function startTween(pos, target, dur) {
+  tween = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos, t1: target, start: performance.now(), dur: dur * 1000 };
+}
+function toggleDetail() {
+  detailMode = !detailMode;
+  document.getElementById('btn-detail').setAttribute('aria-pressed', String(detailMode));
+  if (detailMode) {
+    const [x, y, z] = modelGroup.userData.detail;
+    const target = new THREE.Vector3(x, y, z);
+    const pos = target.clone().add(new THREE.Vector3(0.10, 0.22, 0.30));
+    startTween(pos, target, 1.2);
+  } else {
+    const rest = restPose();
+    startTween(rest.pos, rest.target, 1.2);
+  }
+}
+
+/* =========================================================================
+   UI
+   ========================================================================= */
+const $ = id => document.getElementById(id);
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function writeHash() {
+  history.replaceState(null, '', `#tela=${currentFabric.id}&mueble=${currentModel}`);
+}
+function readHash() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  return { tela: p.get('tela'), mueble: p.get('mueble') };
+}
+
+function swatchButton(f) {
+  const li = document.createElement('li');
+  const b = document.createElement('button');
+  b.className = 'swatch'; b.type = 'button'; b.dataset.id = f.id; b.setAttribute('aria-pressed', 'false');
+  const chip = document.createElement('span'); chip.className = 'chip'; chip.appendChild(TEX.get(f.id).thumb);
+  const txt = document.createElement('span');
+  txt.innerHTML = `<span class="name"></span><span class="kind" style="display:block"></span>`;
+  txt.querySelector('.name').textContent = f.name; txt.querySelector('.kind').textContent = f.type;
+  b.append(chip, txt);
+  b.addEventListener('click', () => setFabric(f));
+  li.appendChild(b);
+  return li;
+}
+
+MODELS.forEach(m => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.textContent = m.name; b.dataset.id = m.id; b.setAttribute('aria-pressed', 'false');
+  b.addEventListener('click', () => setModel(m.id));
+  $('models').appendChild(b);
+});
+
+$('btn-rotate').addEventListener('click', e => {
+  autoRotate = !autoRotate; e.currentTarget.setAttribute('aria-pressed', String(autoRotate));
+});
+$('btn-detail').addEventListener('click', toggleDetail);
+$('btn-theme').addEventListener('click', () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme === 'dark' || (!root.dataset.theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  root.dataset.theme = dark ? 'light' : 'dark';
+  applyTheme();
+});
+$('btn-full').addEventListener('click', () => {
+  const el = document.getElementById('app');
+  if (document.fullscreenElement) document.exitFullscreen?.();
+  else el.requestFullscreen?.().catch(() => toast('Pantalla completa no disponible aquí'));
+});
+$('btn-share').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(location.href); toast('Enlace copiado'); }
+  catch { toast(location.href); }
+});
+$('btn-upload').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', async e => {
+  const file = e.target.files[0]; if (!file) return;
+  try {
+    const bmp = await createImageBitmap(file);
+    const size = 1024, c = makeCanvas(size), ctx = c.getContext('2d');
+    const s = Math.min(bmp.width, bmp.height);
+    ctx.drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, size, size);
+    const hgt = makeCanvas(size), hctx = hgt.getContext('2d');
+    hctx.filter = 'grayscale(1) contrast(1.4)'; hctx.drawImage(c, 0, 0);
+    const id = 'propia-' + Date.now();
+    const f = { id, name: file.name.replace(/\.[^.]+$/, '').slice(0, 24) || 'Tu tela', type: 'Tu tela', color: '#888888',
+      tile: 0.30, sheen: 0.6, rough: 0.9, desc: 'Tela subida desde tu dispositivo.', width: '—', comp: '—', mart: '—' };
+    const map = new THREE.CanvasTexture(c), normal = new THREE.CanvasTexture(await normalFromHeight(hgt, 0.8));
+    for (const t of [map, normal]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / f.tile, 1 / f.tile); t.anisotropy = MAX_ANISO; }
+    map.colorSpace = THREE.SRGBColorSpace;
+    const thumb = makeCanvas(96); thumb.getContext('2d').drawImage(c, 0, 0, 400, 400, 0, 0, 96, 96);
+    TEX.set(id, { map, normal, thumb });
+    FABRICS.push(f);
+    $('swatches').appendChild(swatchButton(f));
+    $('count').textContent = FABRICS.length;
+    setFabric(f);
+    toast('Tela añadida a la colección');
+  } catch { toast('No se pudo leer la imagen'); }
+  e.target.value = '';
+});
+
+function applyTheme() {
+  const root = document.documentElement;
+  const dark = root.dataset.theme === 'dark' || (!root.dataset.theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  floor.material.opacity = dark ? 0.45 : 0.22;
+  renderer.toneMappingExposure = dark ? 0.98 : 1.05;
+  key.intensity = dark ? 2.3 : 2.6;
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+controls.addEventListener('start', () => { interacting = true; $('hint').classList.add('hidden'); tween = null; });
+controls.addEventListener('end', () => { interacting = false; idleTimer = performance.now(); });
+
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  // en escritorio, el mueble se centra en el hueco libre entre la ficha y la colección
+  if (w > 900) camera.setViewOffset(w, h, 120, 30, w, h); else camera.setViewOffset(w, h, 0, -40, w, h);
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+
+const easeOut = t => 1 - Math.pow(1 - t, 3);
+function loop(now) {
+  requestAnimationFrame(loop);
+  if (tween) {
+    const k = Math.min(1, (now - tween.start) / tween.dur), e = easeOut(k);
+    camera.position.lerpVectors(tween.p0, tween.p1, e);
+    controls.target.lerpVectors(tween.t0, tween.t1, e);
+    if (k >= 1) tween = null;
+  }
+  if (modelGroup) modelGroup.scale.lerp(new THREE.Vector3(1, 1, 1), 0.08);
+  controls.autoRotate = autoRotate && !detailMode && !interacting && !tween && (now - idleTimer > 3500);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+/* =========================================================================
+   ARRANQUE
+   ========================================================================= */
+async function boot() {
+  const status = $('status'), bar = $('bar');
+  const nextFrame = () => new Promise(r => { let done = false; const go = () => { if (!done) { done = true; r(); } }; requestAnimationFrame(() => requestAnimationFrame(go)); setTimeout(go, 80); });
+  const h = readHash();
+  const f0 = FABRICS.find(f => f.id === h.tela) || FABRICS[0];
+  const m0 = MODELS.find(m => m.id === h.mueble)?.id || 'sofa';
+
+  // primera tela: se teje antes de abrir el telón
+  status.textContent = f0.name; bar.style.width = '30%';
+  await nextFrame();
+  TEX.set(f0.id, await makeTextures(f0));
+  bar.style.width = '100%';
+  $('count').textContent = FABRICS.length;
+  resize(); applyTheme();
+  setFabric(f0, { silent: true });
+  setModel(m0, { silent: true });
+  writeHash();
+  idleTimer = performance.now();
+  requestAnimationFrame(loop);
+  await nextFrame();
+  $('loader').classList.add('done');
+  setTimeout(() => $('hint').classList.add('hidden'), 9000);
+
+  // el resto de la colección se teje en segundo plano, en orden de catálogo
+  const list = $('swatches');
+  for (const f of FABRICS) {
+    if (!TEX.has(f.id)) { await nextFrame(); TEX.set(f.id, await makeTextures(f)); }
+    const li = swatchButton(f);
+    if (f === f0) { li.firstChild.setAttribute('aria-pressed', 'true'); }
+    li.style.opacity = '0'; li.style.transition = 'opacity 0.6s var(--ease)';
+    list.appendChild(li);
+    await nextFrame(); li.style.opacity = '1';
+  }
+}
+
+try {
+  if (!renderer.capabilities.isWebGL2 && !renderer.getContext()) throw new Error('nowebgl');
+  boot().catch(err => showError(err));
+} catch (err) { showError(err); }
+function showError(err) {
+  console.error(err);
+  const e = $('err'); e.style.display = 'block';
+  e.textContent = 'No se ha podido iniciar el visor 3D en este navegador. Prueba con una versión reciente de Chrome, Safari o Firefox con WebGL activado.';
+  $('status').textContent = 'Error';
+}
+</script>
